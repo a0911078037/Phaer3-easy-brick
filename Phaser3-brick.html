@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>break out</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.52.0/dist/phaser.min.js"></script>
+</head>
+
+<body>
+    <script>
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            backgroundColor: '#DDDDDD',
+            scale: {
+                mode: Phaser.Scale.FIT,
+                autoCenter: Phaser.Scale.CENTER_BOTH
+            },
+            scene: {
+                preload: preload,
+                create: create,
+                update: update
+            },
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: true,
+                    debug: false
+                }
+            }
+        };
+        const game = new Phaser.Game(config);
+        let ball, paddle, cursors, score = 0,
+            scoreText;
+        let lives = 3;
+        let livetext, lifelosttext, gameovertext;
+        let startBtn;
+        let audioCollBrick, audioCollPadlle, audioCollWall, bgMusi,winMusic,lostLifeMusic;
+
+        function preload() {
+            this.load.spritesheet('ball', 'assets/wobble.png', {
+                frameWidth: 20,
+                frameHeight: 20
+            });
+            this.load.spritesheet('btn', 'assets/button.png', {
+                frameWidth: 120,
+                frameHeight: 40
+            });
+            this.load.image('paddle', 'assets/paddle.png');
+            this.load.image('brick', 'assets/brick.png');
+           
+            this.load.image('play', 'assets/play.png');
+            this.load.image('speaker', 'assets/speaker.jpg');
+            this.load.image('pause', 'assets/pause.png');
+            this.load.image('mute', 'assets/mute.png');
+
+            this.load.audio('audioCollBrick', 'assets/audio/collision_brick.mp3');
+            this.load.audio('audioCollPadlle', 'assets/audio/collision_paddle.mp3');
+            this.load.audio('audioCollWall', 'assets/audio/collision_wall.mp3');
+            this.load.audio('winMusic', 'assets/audio/win.mp3');
+            this.load.audio('lostLifeMusic', 'assets/audio/lostlife.mp3');
+            this.load.audio('bgMusic', 'assets/audio/bgMusic.mp3');
+        }
+
+        function create() {
+            //字體設定
+            let myFont = {
+                font: '20px 微軟正黑體',
+                fill: 'black'
+            };
+            livetext = this.add.text(20, 50, "可玩次數: " + lives, myFont);
+            lifelosttext = this.add.text(config.width / 2, config.height / 2, '出界 點我繼續', myFont).setOrigin(0.5);
+            gameovertext = this.add.text(config.width / 2, config.height / 2, '遊戲結束', myFont).setOrigin(0.5);
+            scoreText = this.add.text(20, 20, '分數:' + score, myFont);
+            lifelosttext.visible = false;
+            gameovertext.visible = false;
+            //音樂設定
+            audioCollBrick = this.sound.add('audioCollBrick');
+            audioCollPadlle = this.sound.add('audioCollPadlle');
+            audioCollWall = this.sound.add('audioCollWall');
+            lostLifeMusic=this.sound.add('lostLifeMusic');
+            winMusic=this.sound.add('winMusic');
+            bgMusic = this.sound.add('bgMusic', {
+                volume: 0.2,
+                loop: true
+            });
+            bgMusic.play();
+            let speaker = this.add.image(25, config.height - 75, 'speaker').setScale(0.1).setInteractive()
+                .on('pointerdown', () => {
+                    if (speaker.texture.key == 'speaker') {
+                        speaker.setTexture('mute');
+                    } else {
+                        speaker.setTexture('speaker');
+                    }
+                    if (bgMusic.mute) {
+                        bgMusic.setMute(false);
+                    } else {
+                        bgMusic.setMute(true);
+                    }
+                });
+            //IO硬體設定   
+            cursors = this.input.keyboard.createCursorKeys();
+            this.input.mouse.disableContextMenu();
+            this.input.keyboard.enabled = false;
+           //場景物件
+            ball = this.physics.add.sprite(config.width / 2, config.height / 2, 'ball');
+            ball.anims.create({
+                key: 'collPaddleAnim',
+                frames: this.anims.generateFrameNumbers('ball', {
+                    frames: [0, 2, 0, 1, 0]
+                }),
+                frameRate: 20,
+                repeate: -1
+            });
+            ball.setCollideWorldBounds(true);
+            ball.setBounce(1);
+
+            startBtn = this.add.sprite(config.width / 2, config.height / 2,
+                    'btn').setInteractive()
+                .on('pointerover', () => {
+                    startBtn.setFrame(1);
+                })
+                .on('pointerout', () => {
+                    startBtn.setFrame(0);
+                })
+                .on('pointerdown', () => {
+                    startBtn.setFrame(2);
+                })
+                .on('pointerup', () => {
+                    startBtn.setFrame(0);
+                    startBtn.destroy();
+                    ball.setVelocity(200);
+                    this.input.keyboard.enabled = true;
+                })
+
+            paddle = this.physics.add.sprite(config.width / 2, config.height - 15, 'paddle');
+            paddle.setImmovable();
+
+            bricks = this.physics.add.group();
+            bricks.createMultiple([{
+                    key: 'brick',
+                    repeat: 6,
+                    setXY: {
+                        x: 190,
+                        y: 60,
+                        stepX: 70
+                    }
+                },
+                {
+                    key: 'brick',
+                    repeat: 6,
+                    setXY: {
+                        x: 190,
+                        y: 60 + 40,
+                        stepX: 70
+                    }
+                },
+                {
+                    key: 'brick',
+                    repeat: 6,
+                    setXY: {
+                        x: 190,
+                        y: 60 + 40 + 40,
+                        stepX: 70
+                    }
+                },
+                {
+                    key: 'brick',
+                    repeat: 6,
+                    setXY: {
+                        x: 190,
+                        y: 60 + 40 + 40 + 40,
+                        stepX: 70
+                    }
+                }
+            ]);
+            bricks.children.iterate((child) => {
+                child.setImmovable();
+            });
+            //物體碰撞
+            this.physics.world.on('worldbounds', (body, up, down, left, right) => {
+                if (up || left || right) {
+                    audioCollWall.play();
+                }
+                if (down) {
+                    ball.setVelocity(0);
+                    a.active = false;
+                    lives--;
+                    lostLifeMusic.play();
+                    this.input.keyboard.enabled = false;
+                    if (lives) {
+                        livetext.setText('可玩次數: ' + lives);
+                        lifelosttext.setVisible(true);
+                        lifelosttext.setInteractive().on('pointerdown', (pointer) => {
+                            if (pointer.leftButtonDown()) {
+                                lifelosttext.setBackgroundColor('gray');
+                                lifelosttext.setVisible(false);
+                                resetBall();
+                                resetPaddle();
+                                a.active = true;
+                                this.input.keyboard.enabled = true;
+                            }
+                        })
+                    } else {
+                        gameovertext.setVisible(true);
+                        gameovertext.setInteractive().on('pointerdown', (pointer) => {
+                            gameovertext.setVisible(false);
+                            reset();
+                            this.scene.restart();
+                        })
+                    }
+                }
+
+            });
+            this.physics.add.collider(ball, bricks, collBrick);
+            let a = this.physics.add.collider(ball, paddle, collPaddle);
+        }
+
+        function update() {
+            if (cursors.left.isDown) {
+                paddle.x += -5;
+            } else if (cursors.right.isDown) {
+                paddle.x += 5;
+            } else if (cursors.up.isDown) {
+                paddle.y += -5;
+            } else if (cursors.down.isDown) {
+                paddle.y += 5;
+            }
+            paddle.x = this.input.x;
+        }
+
+        function collBrick(ball, brick) {
+            audioCollBrick.play();
+            brick.scene.tweens.add({
+                targets: brick,
+                scaleX: 0,
+                scaleY: 0,
+                ease: 'Linear',
+                duration: 500,
+                repeat: 0, //-1代表infinity
+                yoyo: false,
+                onComplete: () => {
+                    brick.destroy();
+                }
+            });
+            score += 10;
+            scoreText.setText('分數：' + score);
+            if (bricks.countActive() == 0) {
+                alert("恭喜獲勝!!!");
+                winMusic.play();
+            }
+        }
+
+        function collPaddle(ball, paddle) {
+            audioCollPadlle.play();
+            ball.anims.play('collPaddleAnim');
+            ball.setVelocityX(-1 * Phaser.Math.Between(1, 3) * (paddle.body.x - ball.body.x));
+        }
+
+        function resetBall() {
+            ball.setPosition(config.width / 2, config.height / 2);
+            ball.setVelocity(Phaser.Math.Between(-200, 200), Phaser.Math.Between(-100, -300));
+        }
+
+        function resetPaddle() {
+            paddle.setPosition(config.width / 2, config.height - 15);
+        }
+
+        function reset() {
+            resetBall();
+            resetPaddle();
+            score = 0;
+            lives = 3;
+        }
+    </script>
+</body>
+
+</html>
